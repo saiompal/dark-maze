@@ -9,26 +9,51 @@ public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
     public bool CanPlayerMove { get; private set; }
+    public bool IsDark => phase == Phase.Playing;
 
     [Header("Level Rules")]
     [SerializeField, Min(0.1f)] private float previewSeconds = 6f;
     [SerializeField, Min(0.1f)] private float revealSeconds = 2f;
     [SerializeField, Min(0)] private int revealCharges = 3;
 
+    [Header("Lantern")]
+    [SerializeField, Min(1f)] private float lanternSeconds = 30f;
+    [Tooltip("The light starts flickering when this many seconds are left.")]
+    [SerializeField, Min(0f)] private float lanternWarningSeconds = 5f;
+
+    [Header("Scenes")]
+    [SerializeField] private string menuScene = "MainMenu";
+
     [Header("Scene References")]
     [SerializeField] private Light2D globalLight;
     [SerializeField] private TMP_Text statusText;
+    [Tooltip("Optional. Shows the remaining reveal charges as dots.")]
+    [SerializeField] private TMP_Text chargesText;
 
     private enum Phase
     {
         Preview,
         Playing,
         Revealing,
-        Won
+        Lantern,
+        Won,
+        Failed
     }
+
+    private const string LanternColor = "#FFD54A";
+    private const string DangerColor = "#FF5A4F";
+    private const string SuccessColor = "#5CE68A";
+    private const string SpentColor = "#FFFFFF33";
 
     private Phase phase;
     private int chargesRemaining;
+    private float runStartTime;
+    private Coroutine lightRoutine;
+
+    private bool IsActive =>
+        phase == Phase.Playing ||
+        phase == Phase.Revealing ||
+        phase == Phase.Lantern;
 
     private void Awake()
     {
@@ -53,6 +78,7 @@ public class GameManager : MonoBehaviour
         }
 
         chargesRemaining = revealCharges;
+        UpdateChargesText();
         StartCoroutine(BeginLevel());
     }
 
@@ -70,11 +96,17 @@ public class GameManager : MonoBehaviour
             RestartLevel();
         }
 
+        if (keyboard.escapeKey.wasPressedThisFrame &&
+            Application.CanStreamedLevelBeLoaded(menuScene))
+        {
+            SceneManager.LoadScene(menuScene);
+        }
+
         if (phase == Phase.Playing &&
             keyboard.spaceKey.wasPressedThisFrame &&
             chargesRemaining > 0)
         {
-            StartCoroutine(TemporaryReveal());
+            lightRoutine = StartCoroutine(TemporaryReveal());
         }
 
         if (phase == Phase.Won && keyboard.nKey.wasPressedThisFrame)
@@ -94,7 +126,7 @@ public class GameManager : MonoBehaviour
         while (timeRemaining > 0f)
         {
             statusText.text =
-                $"Memorize the maze: {Mathf.CeilToInt(timeRemaining)}";
+                $"Memorize the maze   <b>{Mathf.CeilToInt(timeRemaining)}</b>";
 
             timeRemaining -= Time.deltaTime;
             yield return null;
@@ -103,6 +135,7 @@ public class GameManager : MonoBehaviour
         globalLight.intensity = 0f;
         phase = Phase.Playing;
         CanPlayerMove = true;
+        runStartTime = Time.time;
         UpdateStatusText();
     }
 
@@ -112,35 +145,88 @@ public class GameManager : MonoBehaviour
         chargesRemaining--;
         globalLight.intensity = 1f;
         UpdateStatusText();
+        UpdateChargesText();
 
         yield return new WaitForSeconds(revealSeconds);
 
-        if (phase == Phase.Won)
-        {
-            yield break;
-        }
-
         globalLight.intensity = 0f;
         phase = Phase.Playing;
+        lightRoutine = null;
         UpdateStatusText();
+    }
+
+    public bool TryCollectLantern()
+    {
+        if (phase != Phase.Playing && phase != Phase.Revealing)
+        {
+            return false;
+        }
+
+        if (lightRoutine != null)
+        {
+            StopCoroutine(lightRoutine);
+        }
+
+        lightRoutine = StartCoroutine(LanternCountdown());
+        return true;
+    }
+
+    private IEnumerator LanternCountdown()
+    {
+        phase = Phase.Lantern;
+        float timeRemaining = lanternSeconds;
+
+        while (timeRemaining > 0f)
+        {
+            globalLight.intensity = timeRemaining > lanternWarningSeconds
+                ? 1f
+                : Flicker(timeRemaining);
+
+            string warning = timeRemaining > lanternWarningSeconds
+                ? ""
+                : $"   <color={DangerColor}><b>HURRY!</b></color>";
+            statusText.text =
+                $"<color={LanternColor}>Lantern lit</color>   " +
+                $"Reach the exit: <b>{Mathf.CeilToInt(timeRemaining)}s</b>{warning}";
+
+            timeRemaining -= Time.deltaTime;
+            yield return null;
+        }
+
+        lightRoutine = null;
+        FailLevel("The lantern burned out before you escaped");
+    }
+
+    private static float Flicker(float timeRemaining)
+    {
+        // Flickers faster as the lantern gets closer to burning out.
+        float speed = Mathf.Lerp(30f, 8f, timeRemaining / 5f);
+        return Mathf.Sin(Time.time * speed) > -0.3f ? 0.8f : 0.15f;
     }
 
     private void UpdateStatusText()
     {
-        if (phase == Phase.Revealing)
+        statusText.text = phase == Phase.Revealing
+            ? $"<color={LanternColor}>Light on</color>"
+            : "Find the exit in the dark";
+    }
+
+    private void UpdateChargesText()
+    {
+        if (chargesText == null)
         {
-            statusText.text =
-                $"Light on   Charges remaining: {chargesRemaining}";
             return;
         }
 
-        statusText.text =
-            $"Dark   Space reveals   Charges: {chargesRemaining}   R restarts";
+        int used = revealCharges - chargesRemaining;
+        chargesText.text =
+            $"<color={LanternColor}>{new string('\u25CF', chargesRemaining)}</color>" +
+            $"<color={SpentColor}>{new string('\u25CF', used)}</color>";
     }
 
     public void WinLevel()
     {
-        if (phase == Phase.Won)
+        if (!IsActive)
         {
             return;
         }
@@ -149,8 +235,26 @@ public class GameManager : MonoBehaviour
         phase = Phase.Won;
         CanPlayerMove = false;
         globalLight.intensity = 1f;
+
+        float runSeconds = Time.time - runStartTime;
         statusText.text =
-            "Exit found   Press N for the next level or R to replay";
+            $"<color={SuccessColor}>Exit found in {runSeconds:0.0}s</color>   " +
+            "N  next level   \u00B7   R  replay";
+    }
+
+    public void FailLevel(string reason)
+    {
+        if (!IsActive)
+        {
+            return;
+        }
+
+        StopAllCoroutines();
+        phase = Phase.Failed;
+        CanPlayerMove = false;
+        globalLight.intensity = 1f;
+        statusText.text =
+            $"<color={DangerColor}>{reason}</color>   Press R to try again";
     }
 
     public void RestartLevel()
@@ -170,7 +274,7 @@ public class GameManager : MonoBehaviour
         else
         {
             statusText.text =
-                "All levels complete   Press R to replay this level";
+                "All levels complete   R  replay   \u00B7   Esc  menu";
         }
     }
 

@@ -9,6 +9,8 @@ public class PlayerMovement : MonoBehaviour
     private Rigidbody2D body;
     private Vector2 moveInput;
 
+    public Vector2 MoveInput => moveInput;
+
     private void Awake()
     {
         body = GetComponent<Rigidbody2D>();
