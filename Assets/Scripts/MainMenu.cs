@@ -3,11 +3,10 @@ using UnityEngine.SceneManagement;
 
 public class MainMenu : MonoBehaviour
 {
-    [SerializeField] private string firstLevelScene = "Level1";
-
-    public void Play()
+    // Each level button passes its scene name.
+    public void LoadLevel(string sceneName)
     {
-        SceneManager.LoadScene(firstLevelScene);
+        SceneManager.LoadScene(sceneName);
     }
 
     public void Quit()

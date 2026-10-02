@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class Portal : MonoBehaviour
+public class PortalController : MonoBehaviour
 {
     public Transform destination;
 

@@ -4009,6 +4009,7 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
+  - component: {fileID: 1177520546}
   - component: {fileID: 1177520542}
   - component: {fileID: 1177520541}
   - component: {fileID: 1177520543}
@@ -4516,6 +4517,7 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
+  - component: {fileID: 1360230190}
   - component: {fileID: 1360230189}
   - component: {fileID: 1360230188}
   - component: {fileID: 1360230187}
@@ -8090,6 +8092,44 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2133523521}
   m_CullTransparentMesh: 1
+--- !u!114 &1360230190
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1360230186}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 497b6c3e3aba744a9b939844d8864b37, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TorchPickup
+  globalLight: {fileID: 619394801}
+  darkIntensity: 0.05
+  brightIntensity: 1
+  fadeDuration: 0.5
+--- !u!114 &1177520546
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1177520540}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 77943e8af134a46d699e91aa7b6662f8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WallBumpFeedback
+  bumpCooldown: 0.5
+  pushThreshold: 0.5
+  pulseColor: {r: 1, g: 0.25, b: 0.2, a: 1}
+  pulseIntensity: 1.2
+  pulseRadius: 1.5
+  pulseSeconds: 0.35
+  shakeMagnitude: 0.08
+  shakeSeconds: 0.15
+  bumpClip: {fileID: 0}
+  bumpVolume: 0.8
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

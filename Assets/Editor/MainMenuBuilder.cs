@@ -6,7 +6,6 @@ using UnityEditor;
 using UnityEditor.Events;
 using UnityEditor.SceneManagement;
 using UnityEngine;
-using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
@@ -19,7 +18,13 @@ public static class MainMenuBuilder
     private const string GameTitle = "IN THE DARK";
 
     private const string MenuScenePath = "Assets/Scenes/MainMenu.unity";
-    private const string FirstLevelPath = "Assets/Scenes/Level1.unity";
+
+    // One menu button per level, in play order.
+    private static readonly string[] LevelPaths =
+    {
+        "Assets/Scenes/Level1.unity",
+        "Assets/Scenes/Level2.unity",
+    };
 
     [MenuItem("Tools/Main Menu/Build Main Menu Scene")]
     private static void Build()
@@ -76,17 +81,22 @@ public static class MainMenuBuilder
         titleText.fontSize = 96f;
         titleText.alignment = TextAlignmentOptions.Center;
 
-        Button play = CreateButton(canvasObject.transform, "Play", menu.Play);
-        CreateButton(canvasObject.transform, "Quit", menu.Quit);
+        Button firstLevel = null;
+        for (int i = 0; i < LevelPaths.Length; i++)
+        {
+            Button level = CreateButton(canvasObject.transform, $"Level {i + 1}");
+            UnityEventTools.AddStringPersistentListener(
+                level.onClick, menu.LoadLevel,
+                Path.GetFileNameWithoutExtension(LevelPaths[i]));
+            firstLevel ??= level;
+        }
+
+        Button quit = CreateButton(canvasObject.transform, "Quit");
+        UnityEventTools.AddPersistentListener(quit.onClick, menu.Quit);
 
         GameObject eventSystem = new GameObject("EventSystem");
-        eventSystem.AddComponent<EventSystem>().firstSelectedGameObject = play.gameObject;
+        eventSystem.AddComponent<EventSystem>().firstSelectedGameObject = firstLevel.gameObject;
         eventSystem.AddComponent<InputSystemUIInputModule>();
-
-        SerializedObject menuData = new SerializedObject(menu);
-        menuData.FindProperty("firstLevelScene").stringValue =
-            Path.GetFileNameWithoutExtension(FirstLevelPath);
-        menuData.ApplyModifiedPropertiesWithoutUndo();
 
         EditorSceneManager.SaveScene(scene, MenuScenePath);
         SetBuildOrder();
@@ -95,7 +105,7 @@ public static class MainMenuBuilder
     }
 
     // A standard Unity UI button.
-    private static Button CreateButton(Transform parent, string label, UnityAction onClick)
+    private static Button CreateButton(Transform parent, string label)
     {
         TMP_DefaultControls.Resources resources = new TMP_DefaultControls.Resources
         {
@@ -111,17 +121,15 @@ public static class MainMenuBuilder
         text.text = label;
         text.fontSize = 32f;
 
-        Button button = buttonObject.GetComponent<Button>();
-        UnityEventTools.AddPersistentListener(button.onClick, onClick);
-        return button;
+        return buttonObject.GetComponent<Button>();
     }
 
-    // MainMenu first, then Level1, then any other levels already listed.
-    // The empty SampleScene template is left out so N after the last
-    // level doesn't load a blank scene.
+    // MainMenu first, then the levels in order, then any other scenes
+    // already listed. The empty SampleScene template is left out so N
+    // after the last level doesn't load a blank scene.
     private static void SetBuildOrder()
     {
-        string[] pinned = { MenuScenePath, FirstLevelPath };
+        string[] pinned = new[] { MenuScenePath }.Concat(LevelPaths).ToArray();
 
         List<EditorBuildSettingsScene> scenes = pinned
             .Select(path => new EditorBuildSettingsScene(path, true))
