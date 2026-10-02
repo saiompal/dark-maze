@@ -5,9 +5,11 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-// Builds the in-game HUD: a status banner at the top, and a bottom bar
-// with the controls and a legend of the shapes in the maze.
-// Run it from the menu: Tools > Level 1 > Build HUD.
+// Builds the in-game HUD for whichever level is open: a status banner at
+// the top, and a bottom bar with the controls and a legend of the shapes
+// in the maze. Every level gets the same controls; the legend lists only
+// the objects that level has.
+// Run it from the menu: Tools > Build HUD.
 public static class HudBuilder
 {
     // The canvas scales with screen height, so these are pixels at 1080p.
@@ -15,6 +17,9 @@ public static class HudBuilder
     internal const float ReferenceHeight = 1080f;
     internal const float TopBarHeight = 80f;
     internal const float BottomBarHeight = 130f;
+
+    private const float ScreenMargin = 0.3f;
+    private const float TargetAspect = 16f / 9f;
 
     private const string TopBarName = "HUD Top Bar";
     private const string BottomBarName = "HUD Bottom Bar";
@@ -31,7 +36,7 @@ public static class HudBuilder
     private static Sprite roundedSprite;
     private static Sprite circleSprite;
 
-    [MenuItem("Tools/Level 1/Build HUD")]
+    [MenuItem("Tools/Build HUD")]
     private static void Build()
     {
         GameManager gameManager = Object.FindAnyObjectByType<GameManager>();
@@ -39,7 +44,7 @@ public static class HudBuilder
 
         if (gameManager == null || camera == null)
         {
-            Debug.LogError("HudBuilder: open the Level1 scene first.");
+            Debug.LogError("HudBuilder: open a level scene first.");
             return;
         }
 
@@ -72,7 +77,7 @@ public static class HudBuilder
         managerData.FindProperty("chargesText").objectReferenceValue = chargesText;
         managerData.ApplyModifiedProperties();
 
-        Level1Builder.FrameCamera(camera);
+        FrameCamera(camera);
 
         Undo.CollapseUndoOperations(undoGroup);
         EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
@@ -188,12 +193,13 @@ public static class HudBuilder
         gridLayout.cellSize = new Vector2(190f, 34f);
         gridLayout.spacing = new Vector2(20f, 8f);
         gridLayout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-        gridLayout.constraintCount = 2;
         gridLayout.childAlignment = TextAnchor.MiddleLeft;
 
         SpriteRenderer player = FindRenderer("Player");
         SpriteRenderer exit = FindRenderer("Exit");
         SpriteRenderer lantern = FindRenderer("Lantern");
+        SpriteRenderer portal = FindRenderer("Portals");
+        SpriteRenderer torch = FindRenderer("Torch");
         Hazard spike = Object.FindAnyObjectByType<Hazard>();
         SpriteRenderer spikeRenderer = spike != null ? spike.GetComponent<SpriteRenderer>() : null;
 
@@ -204,10 +210,34 @@ public static class HudBuilder
             player != null ? player.color : Color.cyan, 28f, 0f);
         CreateLegendItem(grid, "Exit",
             square, exit != null ? exit.color : Color.green, 24f, 0f);
-        CreateLegendItem(grid, "Collectible",
-            square, lantern != null ? lantern.color : Level1Builder.LanternColor, 18f, 45f);
-        CreateLegendItem(grid, "Spike trap",
-            square, spikeRenderer != null ? spikeRenderer.color : Level1Builder.SpikeColor, 20f, 0f);
+        int items = 2;
+
+        if (lantern != null)
+        {
+            CreateLegendItem(grid, "Collectible", square, lantern.color, 18f, 45f);
+            items++;
+        }
+
+        if (spikeRenderer != null)
+        {
+            CreateLegendItem(grid, "Spike trap", square, spikeRenderer.color, 20f, 0f);
+            items++;
+        }
+
+        if (portal != null)
+        {
+            CreateLegendItem(grid, "Portal", portal.sprite, portal.color, 28f, 0f);
+            items++;
+        }
+
+        if (torch != null)
+        {
+            CreateLegendItem(grid, "Torch", torch.sprite, torch.color, 30f, 0f);
+            items++;
+        }
+
+        // Two rows fit in the bar, so add a column when there are more items.
+        gridLayout.constraintCount = items <= 4 ? 2 : 3;
 
         return bar;
     }
@@ -342,10 +372,46 @@ public static class HudBuilder
         AddText(CreateUi("Text", item), label, 22f, LabelColor);
     }
 
+    // Looks in children too: the portal sprites sit under a Portals parent.
     private static SpriteRenderer FindRenderer(string objectName)
     {
         GameObject go = GameObject.Find(objectName);
-        return go != null ? go.GetComponent<SpriteRenderer>() : null;
+        return go != null ? go.GetComponentInChildren<SpriteRenderer>(true) : null;
+    }
+
+    // Fits the maze into the screen area between the HUD bars. The HUD
+    // scales with screen height, so the bars are a fixed share of it.
+    // The floor covers the whole maze, so its bounds give the maze's size.
+    internal static void FrameCamera(Camera camera)
+    {
+        GameObject floor = GameObject.Find("Floor");
+        SpriteRenderer floorRenderer = floor != null ? floor.GetComponent<SpriteRenderer>() : null;
+
+        if (floorRenderer == null)
+        {
+            Debug.LogWarning("HudBuilder: no Floor sprite found, so the camera wasn't framed.");
+            return;
+        }
+
+        Bounds maze = floorRenderer.bounds;
+        float topShare = TopBarHeight / ReferenceHeight;
+        float bottomShare = BottomBarHeight / ReferenceHeight;
+
+        float sizeForHeight =
+            (maze.extents.y + ScreenMargin) / (1f - topShare - bottomShare);
+        float sizeForWidth = (maze.extents.x + ScreenMargin) / TargetAspect;
+        float size = Mathf.Max(sizeForHeight, sizeForWidth);
+
+        Undo.RecordObject(camera, "Frame Camera");
+        Undo.RecordObject(camera.transform, "Frame Camera");
+        camera.rect = new Rect(0f, 0f, 1f, 1f);
+        camera.orthographicSize = size;
+
+        // Shift the camera so the maze is centred in the space between the bars.
+        float offsetY = size * (topShare - bottomShare);
+        camera.transform.position = new Vector3(
+            maze.center.x, maze.center.y + offsetY, camera.transform.position.z
+        );
     }
 
     private static RectTransform CreateUi(string name, Transform parent)

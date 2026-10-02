@@ -38,12 +38,9 @@ public static class Level1Builder
 
     private const float PreviewSeconds = 10f;
 
-    private const float ScreenMargin = 0.3f;
-    private const float TargetAspect = 16f / 9f;
-
     private static readonly Color DefaultWallColor = new Color(0.83f, 0.83f, 0.83f);
-    internal static readonly Color SpikeColor = new Color(0.8f, 0.12f, 0.1f);
-    internal static readonly Color LanternColor = new Color(1f, 0.85f, 0.3f);
+    private static readonly Color SpikeColor = new Color(0.8f, 0.12f, 0.1f);
+    private static readonly Color LanternColor = new Color(1f, 0.85f, 0.3f);
 
     [MenuItem("Tools/Level 1/Build Maze From Layout")]
     private static void Build()
@@ -171,7 +168,7 @@ public static class Level1Builder
             Undo.AddComponent<WallBumpFeedback>(player);
         }
 
-        FrameCamera(camera);
+        HudBuilder.FrameCamera(camera);
         SetPreviewSeconds(gameManager);
         EnsureSceneInBuildSettings();
 
@@ -307,32 +304,6 @@ public static class Level1Builder
         GameObject root = new GameObject(name);
         Undo.RegisterCreatedObjectUndo(root, $"Create {name}");
         return root;
-    }
-
-    // Fits the maze into the screen area between the HUD bars. The HUD
-    // scales with screen height, so the bars are a fixed share of it.
-    internal static void FrameCamera(Camera camera)
-    {
-        int width = Layout[0].Length;
-        int height = Layout.Length;
-
-        float topShare = HudBuilder.TopBarHeight / HudBuilder.ReferenceHeight;
-        float bottomShare = HudBuilder.BottomBarHeight / HudBuilder.ReferenceHeight;
-
-        float sizeForHeight =
-            (height * 0.5f + ScreenMargin) / (1f - topShare - bottomShare);
-        float sizeForWidth = (width * 0.5f + ScreenMargin) / TargetAspect;
-        float size = Mathf.Max(sizeForHeight, sizeForWidth);
-
-        Undo.RecordObject(camera, "Frame Camera");
-        Undo.RecordObject(camera.transform, "Frame Camera");
-        camera.orthographicSize = size;
-
-        // Shift the camera so the maze is centred in the space between the bars.
-        float offsetY = size * (topShare - bottomShare);
-        camera.transform.position = new Vector3(
-            0f, offsetY, camera.transform.position.z
-        );
     }
 
     private static void SetPreviewSeconds(GameManager gameManager)
